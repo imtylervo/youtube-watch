@@ -2,6 +2,12 @@
 
 Versions follow [semver](https://semver.org): major = breaking CLI or output change, minor = new feature, patch = fix. The current version is in `VERSION`; each release has a git tag `vX.Y.Z`.
 
+## 4.1.0 (2026-10-26)
+
+- Gradual scene changes: ffmpeg's scene score compares neighbouring frames, so a fade or a motion graphic that builds up over a second was never a scene change, and a video made of them got only the plan's sparse frames. `extract-frames-from-plan.py` now also counts a picture as changed when it differs from the one 1.5 s earlier far more than from the one 1 s later (it changed, then it holds), from the same ffmpeg decode. A moving camera changes about as much before as after, so handheld footage and slow pans do not count. Gradual changes are written as `scene` and feed the visual-heavy check; one within 2 s of a hard cut is that cut and is skipped; over the frame budget they come after the transcript's dense frames (a 1-hour test with dense zones keeps all 117 dense frames). Measured old → new, frames: a 1:55 talking-head video with fading motion graphics 15 → 27 (nearly every graphic now has one); a 4:55 animated short film 10 → 65 (0 → 39 scene changes; total time 16 → 25 s); a 19 s handheld clip 1 → 1; a 5:22 screen tutorial 61 → 75; a 1:42 editing-app tutorial 16 → 34; a 5:34 edited talk to camera 93 → 108. Scene detection on a 1-hour video: 22.3 → 22.4 s. (The "12 frames in 16 s" figure in earlier notes was recorded with 4.0.2.)
+- Install as a Claude Code plugin: `/plugin marketplace add imtylervo/youtube-watch`, then `/plugin install youtube-watch@youtube-watch`. The repo root is the plugin (`.claude-plugin/plugin.json`, `marketplace.json`, `icon.png`); git-clone installs work as before. SKILL.md calls the script through `${CLAUDE_SKILL_DIR}`, so it works from either location. For plugin installs, `extract-v3.sh` also finds a Whisper venv at `~/.local/share/youtube-watch/.venv`, outside the plugin folder that updates replace.
+- README: demo video, plugin install, and how the skill compares with claude-real-video.
+
 ## 4.0.2 (2026-10-26)
 
 - Fix: a local video file (`extract-v3.sh ~/clip.mp4`) failed with "is not a valid URL", although SKILL.md says local `.mp4`/`.mov` work. Local files now skip the caption tiers, get their transcript from Whisper on the file's audio and their frames from the file itself; the file is linked, never copied or deleted. Tested on a 4 min 55 s film: 90 transcript lines and 12 frames in 16 s.

@@ -3,7 +3,8 @@
 
 The plan defines zones (start/end/every_sec). For each zone, this script
 asks ffmpeg to seek to ts and grab a single frame. On top of the plan it also
-  - adds a frame at every detected scene change (label "scene"), and
+  - adds a frame at every detected scene change (label "scene"): a hard cut, or a
+    gradual one (a fade, a graphic that builds up) once the new picture holds, and
   - drops a frame that is (almost) pixel-identical to the last one kept, so a
     static slide yields one frame — while one new bullet or code line still
     counts as a change and is kept.
@@ -22,16 +23,27 @@ import math
 import re
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 VISUAL_SCENES_PER_MIN = 1.0   # at least this many picture changes a minute = visual-heavy video
 VISUAL_EVERY_SEC = 10         # ...then sample the ordinary zones at least this often
 SCENE_BURST_GAP = 3           # scene hits closer than this (s) are one change (camera flicker)
-PRIORITY = {"scene": 0, "dense": 1}  # kept first when over the frame budget
+PRIORITY = {"scene": 0, "dense": 1, "gradual": 2}  # kept first when over the frame budget
+# ("gradual" = a fade-type scene change: frequent in motion graphics, so it must not crowd
+#  out the frames the transcript asked for; it is written to frame_index.txt as "scene")
 FP_W, FP_H = 160, 90                 # fingerprint size: fine enough to see a text line
 PIXEL_DELTA = 12                     # grey-level change that counts as "different"
 DUP_RATIO = 0.001                    # <=0.1% (14 of 14400) pixels changed -> duplicate:
                                      # a mouse pointer, not a typed line
+# Gradual changes: ffmpeg's scene score compares neighbouring frames, so a fade or a title
+# that builds up over a second never scores high. A picture counts as changed when, at
+# 2 fps, it differs from the one 1.5 s earlier (>= CHANGE_RATIO of pixels) far more than
+# from the one 1 s later (CHANGE_HOLD times): it changed, then it holds. A moving camera
+# changes about as much before as after, so handheld footage and slow pans do not count.
+CHANGE_RATIO = 0.10
+CHANGE_HOLD = 2.5
+CHANGE_BACK, CHANGE_AHEAD = 3, 2     # samples at 2 fps: 1.5 s back, 1 s ahead
 
 
 def fmt_ts(sec: int) -> str:
@@ -57,21 +69,64 @@ def extract_frame(video: Path, ts_sec: int, out_path: Path) -> bool:
     return r.returncode == 0 and out_path.exists() and out_path.stat().st_size > 0
 
 
-def scene_timestamps(video: Path, threshold: float) -> list[int]:
-    """Whole seconds at which the picture changes a lot (slide flip, app switch)."""
-    cmd = [
-        "ffmpeg", "-loglevel", "info", "-i", str(video), "-an",
-        "-vf", f"fps=2,scale=320:-1,select='gt(scene,{threshold})',showinfo",
-        "-f", "null", "-",
-    ]
-    try:
-        r = subprocess.run(cmd, capture_output=True, text=True, timeout=900)
-    except subprocess.TimeoutExpired:
-        sys.stderr.write("⚠ scene detection timed out — continuing without it\n")
-        return []
-    found = re.findall(r"pts_time:(\d+(?:\.\d+)?)", r.stderr)
+def changed_ratio(a: bytes, b: bytes) -> float:
+    return sum(1 for x, y in zip(a, b) if abs(x - y) > PIXEL_DELTA) / len(a)
+
+
+def gradual_changes(frames) -> list[int]:
+    """Whole seconds at which a 2 fps stream of fingerprints changed and then held."""
+    hits: list[int] = []
+    window: list[bytes] = []
+    last: bytes | None = None
+    start = -10.0
+    for i, fp in enumerate(frames):
+        window.append(fp)
+        if len(window) > CHANGE_BACK + CHANGE_AHEAD + 1:
+            window.pop(0)
+        if len(window) < CHANGE_BACK + CHANGE_AHEAD + 1:
+            last = last or window[0]
+            continue
+        old, cur, new = window[0], window[CHANGE_BACK], window[-1]
+        before = changed_ratio(old, cur)
+        if before <= CHANGE_RATIO or changed_ratio(cur, last) <= CHANGE_RATIO:
+            continue
+        if before <= CHANGE_HOLD * changed_ratio(cur, new):
+            continue
+        t = math.ceil((i - CHANGE_AHEAD) / 2)
+        if hits and t - start <= 1.5:
+            hits[-1] = t          # the same fade, a moment later: keep where it settled
+        else:
+            hits.append(t)
+            start = t
+        last = cur
+    return hits
+
+
+def scene_timestamps(video: Path, threshold: float) -> tuple[list[int], list[int]]:
+    """Whole seconds at which the picture changes: (hard cuts, gradual changes).
+    One decode: ffmpeg logs the cuts on stderr and streams 2 fps fingerprints on stdout."""
+    graph = (f"[0:v]fps=2,split=2[a][b];"
+             f"[a]scale=320:-1,select='gt(scene,{threshold})',showinfo,nullsink;"
+             f"[b]scale={FP_W}:{FP_H},format=gray[g]")
+    cmd = ["ffmpeg", "-loglevel", "info", "-i", str(video), "-an",
+           "-filter_complex", graph, "-map", "[g]", "-f", "rawvideo", "-"]
+    size = FP_W * FP_H
+    with tempfile.TemporaryFile() as log:
+        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=log)
+
+        def stream():
+            while True:
+                fp = proc.stdout.read(size)
+                if len(fp) < size:
+                    return
+                yield fp
+
+        gradual = gradual_changes(stream())
+        proc.wait()
+        log.seek(0)
+        found = re.findall(r"pts_time:(\d+(?:\.\d+)?)", log.read().decode("utf-8", "replace"))
     # ceil: pts_time is the first frame of the new scene; never land before the cut.
-    return sorted({math.ceil(float(t)) for t in found})
+    return sorted({math.ceil(float(t)) for t in found}), gradual
 
 
 def boost_for_visual(zones: list[dict], scenes: list[int], duration: int) -> list[dict]:
@@ -162,8 +217,11 @@ def main() -> int:
     sys.stderr.write(f"→ target frame budget: {plan.get('target_frame_count')}\n")
 
     # Candidate timestamps: plan zones, then scene changes (which win the label).
-    scenes = scene_timestamps(video, args.scene_threshold)
-    sys.stderr.write(f"→ scene changes detected: {len(scenes)}\n")
+    cuts, gradual = scene_timestamps(video, args.scene_threshold)
+    # a picture settling just after a hard cut is that cut, already kept
+    gradual = [t for t in gradual if all(abs(t - c) > SCENE_BURST_GAP - 1 for c in cuts)]
+    scenes = sorted(set(cuts) | set(gradual))
+    sys.stderr.write(f"→ scene changes detected: {len(scenes)} ({len(cuts)} cuts, {len(gradual)} gradual)\n")
     zones = boost_for_visual(zones, scenes, duration)
     cands: dict[int, str] = {}
     for z in zones:
@@ -172,7 +230,12 @@ def main() -> int:
         while ts < z["end_sec"]:
             cands[ts] = z.get("density", "normal")
             ts += every
-    for ts in scenes:
+    for ts in gradual:
+        if duration and ts >= duration:
+            continue
+        if cands.get(ts) != "dense":
+            cands[ts] = "gradual"
+    for ts in cuts:
         if duration and ts >= duration:
             continue
         cands[ts] = "scene"
@@ -194,7 +257,8 @@ def main() -> int:
             else:
                 name = f"frame_{len(index_lines) + 1:04d}.jpg"
                 tmp_path.replace(out_dir / name)
-                index_lines.append(f"{name}\t{ts // 60:02d}:{ts % 60:02d}\t{cands[ts]}")
+                label = "scene" if cands[ts] == "gradual" else cands[ts]
+                index_lines.append(f"{name}\t{ts // 60:02d}:{ts % 60:02d}\t{label}")
                 last_fp = fp
         if i % 50 == 0:
             sys.stderr.write(f"  {i}/{len(timestamps)} done\n")

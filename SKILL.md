@@ -8,8 +8,10 @@ description: Make Claude actually watch a video. Downloads any YouTube/Vimeo/Tik
 Default workflow — call `extract-v3.sh` and then read `understanding.md`. That's the whole skill in one sentence.
 
 ```bash
-~/.claude/skills/youtube-watch/scripts/extract-v3.sh "<video-url-or-path>"
+${CLAUDE_SKILL_DIR}/scripts/extract-v3.sh "<video-url-or-path>"
 ```
+
+(Outside Claude Code, use the folder you cloned into, e.g. `~/.claude/skills/youtube-watch/scripts/extract-v3.sh`.)
 
 **Look at every frame.** To watch, summarize or explain a video (including "xem", "tóm tắt", or a bare link), open **every** picture in `sheets/` (`sheet_01.jpg`, `sheet_02.jpg`, …) before answering. Each holds 16 frames, labelled with frame number and time, so a 15-min video is about 8 reads. Then open single frames from `frames/` to read small on-screen text (slides, tables, tweets, code). Do not answer from `overview.jpg` and a couple of frames: the picture often carries what the speaker never says (dashboards, numbers, quoted articles). In the answer, say how many frames you looked at (e.g. "looked at 131/131 frames"). Only for a narrow question about one moment ("what's at 2:30") may you open just that part. `overview.jpg` (~20 frames in one picture) is a first glance only.
 
@@ -66,7 +68,7 @@ Override frame budget directly with `--max-frames N` (e.g. `500` for 5h+ videos)
    - **Audio download fallback:** audio-only formats can all fail with HTTP 403 while the 360p stream that carries audio (format 18) still works; the script takes the audio from it.
 3. **`analyze-transcript.py`** reads the transcript, regex-detects speaker visual references (`look-here` / `next-slide` / `code-action` / `click-action` / `screen-share` / `diagram` / `demo`), classifies the video as `tutorial-code` / `demo-ui` / `slide-presentation` / `livestream-chat` / `talking-head` / `vlog` / `mixed` (or `no-speech` when there is no transcript: then frames every 3 s over the video's real length), and emits a JSON plan with extraction zones.
 4. **yt-dlp video DL** at the chosen resolution, then **`extract-frames-from-plan.py`** ffmpeg-seek-and-grabs one frame per planned timestamp.
-   - Also adds a frame at every scene change, drops near-identical frames, and — when the picture changes at least once a minute (independent of language or what the speaker says) — samples the ordinary zones at least every 10 s. This is a coarse signal: it also fires on edited talking-head videos (+~40% frames of a face), which is the accepted cost of not missing a static screen the speaker points at.
+   - Also adds a frame at every scene change (a hard cut, or a gradual one — a fade, a graphic building up — once the new picture holds; a moving camera does not count), drops near-identical frames, and — when the picture changes at least once a minute (independent of language or what the speaker says) — samples the ordinary zones at least every 10 s. This is a coarse signal: it also fires on edited talking-head videos (+~40% frames of a face), which is the accepted cost of not missing a static screen the speaker points at.
 5. **Combined `understanding.md`** + cleanup (drops `video.mp4`, `audio.*`, raw whisper output — keeps the digest-ready files).
 
 ## Why content-aware (vs fixed sampling)

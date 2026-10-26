@@ -63,6 +63,9 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PYTHON="${YOUTUBE_WATCH_PYTHON:-python3}"
 if [[ -x "$SCRIPT_DIR/../.venv/bin/python" ]]; then
   PYTHON="$SCRIPT_DIR/../.venv/bin/python"
+elif [[ -z "${YOUTUBE_WATCH_PYTHON:-}" && -x "$HOME/.local/share/youtube-watch/.venv/bin/python" ]]; then
+  # plugin installs: the plugin folder is replaced on update, so the venv lives outside it
+  PYTHON="$HOME/.local/share/youtube-watch/.venv/bin/python"
 fi
 
 # YouTube changes often; a yt-dlp more than ~60 days old is the usual cause of HTTP 403.

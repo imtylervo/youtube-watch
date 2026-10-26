@@ -14,11 +14,28 @@ A Claude Code (or any Anthropic-SDK / MCP-compatible) skill that:
 
 ## Why content-aware frames
 
-Sampling blindly (one frame every N seconds) wastes most frames on a speaker's face, and sampling only at scene changes misses a static slide the speaker keeps pointing at. This skill reads the transcript first, classifies the video (tutorial-code / demo-ui / slide-presentation / livestream-chat / talking-head / vlog / mixed / no-speech) and samples **densely** (1 frame / 2-3 s) around the moments the speaker says "look at this", "click here", "next slide", "let me code", and **normally** (1 frame / 8-15 s) elsewhere, plus a frame at every scene change.
+Sampling blindly (one frame every N seconds) wastes most frames on a speaker's face, and sampling only at scene changes misses a static slide the speaker keeps pointing at. This skill reads the transcript first, classifies the video (tutorial-code / demo-ui / slide-presentation / livestream-chat / talking-head / vlog / mixed / no-speech) and samples **densely** (1 frame / 2-3 s) around the moments the speaker says "look at this", "click here", "next slide", "let me code", and **normally** (1 frame / 8-15 s) elsewhere, plus a frame at every scene change — hard cuts and gradual ones (a fade, a motion graphic building up) once the new picture holds, while a handheld or panning camera does not count.
+
+## How it compares to claude-real-video
+
+[claude-real-video](https://github.com/HUANGCHIHHUNGLeo/claude-real-video) (crv) does a similar job and is worth a look. The differences, going by its README on 2026-10-26:
+
+- **Choosing frames:** crv keeps frames at scene changes plus a minimum rate. youtube-watch also reads the transcript first and samples densely where the speaker points at something ("look at this", "next slide", "let me code").
+- **What Claude reads:** youtube-watch writes one `understanding.md` in which each frame sits next to what was said until the next frame. crv gives the frames, `transcript.txt` and a `MANIFEST.txt`.
+- **Cost:** both are free and run locally; crv also offers a paid Pro version.
 
 ## Install
 
-### Claude Code (skill)
+### Claude Code plugin (one command)
+
+```text
+/plugin marketplace add imtylervo/youtube-watch
+/plugin install youtube-watch@youtube-watch
+```
+
+For the optional Whisper tier, put the Python packages in `~/.local/share/youtube-watch/.venv` (see Dependencies); the plugin's own folder is replaced on every update.
+
+### Claude Code (skill, git clone)
 
 ```bash
 git clone https://github.com/imtylervo/youtube-watch.git ~/.claude/skills/youtube-watch
@@ -40,6 +57,7 @@ pip install --user youtube-transcript-api
 # Preferred: the skill's own venv (mlx-whisper on Apple Silicon, faster-whisper elsewhere)
 uv venv --python 3.11 ~/.claude/skills/youtube-watch/.venv
 uv pip install --python ~/.claude/skills/youtube-watch/.venv/bin/python -r requirements.txt
+# Plugin install: same, in ~/.local/share/youtube-watch/.venv (found automatically)
 # mlx-whisper runs only with a model already in ~/.cache/huggingface (it never downloads one);
 # fetch it once with: hf download mlx-community/whisper-large-v3-turbo
 
@@ -121,7 +139,8 @@ Stage 3: analyze-transcript.py
 
 Stage 4: yt-dlp video download at chosen quality (default client → embedded-player
          client → Android 360p if YouTube 403s), then extract-frames-from-plan.py:
-         planned timestamps + scene-change frames, denser when the picture keeps
+         planned timestamps + scene-change frames (hard cuts, and gradual
+         changes once the new picture holds), denser when the picture keeps
          changing, near-identical frames dropped
 
 Stage 5: make-overview.py → overview.jpg; optional ocr-frames.py;

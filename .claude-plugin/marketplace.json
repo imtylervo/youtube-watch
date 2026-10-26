@@ -1,0 +1,14 @@
+{
+  "name": "youtube-watch",
+  "owner": { "name": "imtylervo", "url": "https://github.com/imtylervo" },
+  "description": "youtube-watch: let Claude watch a video (transcript + frames)",
+  "plugins": [
+    {
+      "name": "youtube-watch",
+      "source": "./",
+      "description": "Let Claude watch a video: timestamped transcript, content-aware frames and contact sheets in one pass",
+      "category": "productivity",
+      "tags": ["video", "youtube", "transcript", "whisper"]
+    }
+  ]
+}

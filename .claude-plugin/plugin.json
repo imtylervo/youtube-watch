@@ -1,0 +1,10 @@
+{
+  "name": "youtube-watch",
+  "version": "4.1.0",
+  "description": "Let Claude watch a video: timestamped transcript, content-aware frames and contact sheets in one pass",
+  "author": { "name": "imtylervo", "url": "https://github.com/imtylervo" },
+  "homepage": "https://github.com/imtylervo/youtube-watch",
+  "repository": "https://github.com/imtylervo/youtube-watch",
+  "license": "MIT",
+  "keywords": ["video", "youtube", "transcript", "whisper", "frames", "contact-sheet"]
+}
