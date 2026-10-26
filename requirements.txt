@@ -1,0 +1,7 @@
+# Optional Python packages for the skill's .venv (scripts run without them, with fewer features):
+#   uv venv --python 3.11 .venv && uv pip install --python .venv/bin/python -r requirements.txt
+youtube-transcript-api>=1.2   # Tier A captions
+numpy>=2.0                    # audio fallbacks
+faster-whisper>=1.2           # Tier C on CPU, and Silero VAD for the mlx tier
+mlx-whisper>=0.4.3; sys_platform == "darwin" and platform_machine == "arm64"   # Tier C on the Apple GPU
+pillow>=10.1                  # sheet labels when ffmpeg has no drawtext

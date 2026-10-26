@@ -1,0 +1,9 @@
+.DS_Store
+__pycache__/
+.venv/
+*.pyc
+*.bak
+/tmp/
+
+# real proxy creds (template: yt-watch.env.example)
+yt-watch.env
