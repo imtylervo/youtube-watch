@@ -134,11 +134,22 @@ case "$QUALITY" in
   *) echo "unknown --quality: $QUALITY" >&2; exit 1 ;;
 esac
 
+# A local video file (.mp4, .mov, ...): no captions to fetch and nothing to download;
+# the transcript comes from Whisper on its audio and the frames from the file itself.
+LOCAL_FILE=""
+if [[ -f "$URL" ]]; then LOCAL_FILE="$(cd "$(dirname "$URL")" && pwd)/$(basename "$URL")"; fi
+
 # id + the video's own language (decides the real subtitle track; "NA" = unknown)
 video_meta() { yt-dlp --print "%(id)s|%(language)s|%(duration)s" --no-warnings "$URL" 2>/dev/null | head -1; }
-META=$(video_meta)
-# Direct request blocked (YouTube bot-check)? Switch to the proxy and retry once.
-if [[ "$META" != *"|"*"|"* ]]; then maybe_enable_proxy; META=$(video_meta); fi
+if [[ -n "$LOCAL_FILE" ]]; then
+  LOCAL_ID=$(printf '%s' "$(basename "${LOCAL_FILE%.*}")" | tr -c 'A-Za-z0-9_-' '_')
+  LOCAL_DURATION=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$LOCAL_FILE" 2>/dev/null | cut -d. -f1)
+  META="${LOCAL_ID}|NA|${LOCAL_DURATION:-NA}"
+else
+  META=$(video_meta)
+  # Direct request blocked (YouTube bot-check)? Switch to the proxy and retry once.
+  if [[ "$META" != *"|"*"|"* ]]; then maybe_enable_proxy; META=$(video_meta); fi
+fi
 if [[ "$META" == *"|"*"|"* ]]; then
   VID_ID="${META%%|*}"; META_REST="${META#*|}"
   VIDEO_LANG="${META_REST%%|*}"; VIDEO_LANG="${VIDEO_LANG%%-*}"
@@ -154,7 +165,10 @@ mkdir -p "$OUT/frames"
 
 # The author's own title, description and chapters (best effort): names that automatic
 # captions get wrong are usually spelled right here.
-if ! yt-dlp --dump-single-json --skip-download --no-playlist --no-warnings "$URL" > "$OUT/meta.json" 2>/dev/null; then
+if [[ -n "$LOCAL_FILE" ]]; then
+  "$PYTHON" -c "import json,sys; json.dump({'title': sys.argv[1]}, open(sys.argv[2], 'w'))" \
+      "$(basename "$LOCAL_FILE")" "$OUT/meta.json"
+elif ! yt-dlp --dump-single-json --skip-download --no-playlist --no-warnings "$URL" > "$OUT/meta.json" 2>/dev/null; then
   rm -f "$OUT/meta.json"
 fi
 
@@ -189,7 +203,7 @@ fi
 
 # Tier A: youtube-transcript-api
 GET_TRANSCRIPT="$SCRIPT_DIR/get-transcript.py"
-if [[ "$PREFER_WHISPER" == "0" ]] && [[ -x "$GET_TRANSCRIPT" ]] && "$PYTHON" -c "import youtube_transcript_api" 2>/dev/null; then
+if [[ -z "$LOCAL_FILE" && "$PREFER_WHISPER" == "0" ]] && [[ -x "$GET_TRANSCRIPT" ]] && "$PYTHON" -c "import youtube_transcript_api" 2>/dev/null; then
   echo "→ Tier A: youtube-transcript-api…"
   if "$PYTHON" "$GET_TRANSCRIPT" "$URL" --out "$TRANSCRIPT_TXT" --lang "$TRANSCRIPT_LANGS" 2>&1 | tail -1 >&2; then
     LINES=$(wc -l < "$TRANSCRIPT_TXT" 2>/dev/null | tr -d ' ' || echo 0)
@@ -201,7 +215,7 @@ if [[ "$PREFER_WHISPER" == "0" ]] && [[ -x "$GET_TRANSCRIPT" ]] && "$PYTHON" -c 
 fi
 
 # Tier B: yt-dlp --write-auto-subs
-if [[ -z "$TRANSCRIPT_TIER" && "$PREFER_WHISPER" == "0" ]]; then
+if [[ -z "$LOCAL_FILE" && -z "$TRANSCRIPT_TIER" && "$PREFER_WHISPER" == "0" ]]; then
   echo "→ Tier B: yt-dlp auto-subs…"
   yt-dlp --skip-download --write-subs --write-auto-subs \
          --sub-langs "$SUB_LANGS" --sub-format "vtt/best" \
@@ -247,6 +261,7 @@ if [[ -z "$TRANSCRIPT_TIER" ]] && [[ "$WANT_WHISPER" == "1" ]]; then
       echo "→ Tier C: faster-whisper ($WHISPER_MODEL)…"
     fi
     AUDIO_M4A="$OUT/audio.m4a"
+    [[ -n "$LOCAL_FILE" ]] && AUDIO_M4A="$LOCAL_FILE"   # ffmpeg reads the audio straight from it
     AUDIO_WAV="$OUT/audio.wav"
     AUDIO_FORMAT="139/140/bestaudio[ext=m4a]/bestaudio"
     if [[ ! -s "$AUDIO_M4A" ]]; then
@@ -340,6 +355,8 @@ echo
 # ─── Stage 4: Download video + extract frames per plan ─────────────────────
 echo "→ Stage 4: downloading video at ${MAX_HEIGHT}p + extracting frames per plan…"
 VIDEO_FILE="$OUT/video.mp4"
+# Local file: link it in (cleanup removes only the link, never the user's file).
+[[ -n "${LOCAL_FILE:-}" ]] && ln -sf "$LOCAL_FILE" "$VIDEO_FILE"
 if [[ ! -f "$VIDEO_FILE" ]]; then
   DOWNLOAD_STATUS=0
   DASH_FORMAT="bestvideo[height<=${MAX_HEIGHT}][ext=mp4]+bestaudio[ext=m4a]/best[height<=${MAX_HEIGHT}]/best"

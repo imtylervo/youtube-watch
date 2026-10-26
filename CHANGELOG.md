@@ -2,6 +2,10 @@
 
 Versions follow [semver](https://semver.org): major = breaking CLI or output change, minor = new feature, patch = fix. The current version is in `VERSION`; each release has a git tag `vX.Y.Z`.
 
+## 4.0.2 (2026-10-26)
+
+- Fix: a local video file (`extract-v3.sh ~/clip.mp4`) failed with "is not a valid URL", although SKILL.md says local `.mp4`/`.mov` work. Local files now skip the caption tiers, get their transcript from Whisper on the file's audio and their frames from the file itself; the file is linked, never copied or deleted. Tested on a 4 min 55 s film: 90 transcript lines and 12 frames in 16 s.
+
 ## 4.0.1 (2026-10-26)
 
 - Cleanup before going public: removed links to a private repo, personal examples and notes, the comparison with the removed v1/v2 extractors and an unmeasured "~95% understanding" claim; proxy providers are examples, not recommendations; `transcript-quality.py` reasons are in English; README file layout and output list match the current scripts.

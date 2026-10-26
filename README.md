@@ -55,6 +55,12 @@ brew install tesseract tesseract-lang
     "https://youtu.be/XXXX"
 ```
 
+A local file works too (the transcript then comes from Whisper on its audio):
+
+```bash
+~/.claude/skills/youtube-watch/scripts/extract-v3.sh ~/Movies/talk.mp4
+```
+
 Output in `~/.cache/yt-watch/<video-id>/`:
 - `transcript.txt` — `MM:SS  text` timeline
 - `transcript.source` — which tier won (`youtube-api` / `yt-dlp-vtt` / `mlx-whisper-<model>` / `faster-whisper-<model>` / `none`)
