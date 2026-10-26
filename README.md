@@ -4,6 +4,8 @@ A skill that lets Claude watch a video. Version in [`VERSION`](VERSION), changes
 
 Watch any YouTube video the way a human would — see the frames, hear the audio, cross-reference what was shown with what was said.
 
+https://github.com/user-attachments/assets/31727c53-8940-40c7-a324-eae3213855a1
+
 A Claude Code (or any Anthropic-SDK / MCP-compatible) skill that:
 
 1. Downloads the video and its transcript via `yt-dlp`.
