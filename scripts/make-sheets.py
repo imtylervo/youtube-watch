@@ -22,6 +22,8 @@ from pathlib import Path
 COLS, ROWS = 4, 4
 PER_SHEET = COLS * ROWS
 CELL_W, CELL_H = 640, 360
+# Windows ffmpeg builds crash in fontconfig when drawtext names no font; point it at Arial.
+WIN_FONT = "fontfile='C\\:/Windows/Fonts/arial.ttf':" if sys.platform == "win32" else ""
 
 
 def chunks(rows: list[tuple[str, str]]) -> list[list[tuple[str, str]]]:
@@ -62,7 +64,7 @@ def build(group: list[tuple[str, str]], frames: Path, out: Path, labels: bool) -
         f = (f"[{i}:v]scale={CELL_W}:{CELL_H}:force_original_aspect_ratio=decrease,"
              f"pad={CELL_W}:{CELL_H}:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1,format=yuvj420p")
         if labels:
-            f += (f",drawtext=text='{label(name, ts)}':x=6:y=6:fontsize=26:fontcolor=yellow"
+            f += (f",drawtext={WIN_FONT}text='{label(name, ts)}':x=6:y=6:fontsize=26:fontcolor=yellow"
                   ":box=1:boxcolor=black@0.75:boxborderw=6")
         chains.append(f + f"[c{i}]")
     rows = -(-len(group) // COLS)
