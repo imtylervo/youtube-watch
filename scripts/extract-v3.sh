@@ -345,10 +345,10 @@ echo "→ Stage 3: analyzing transcript → frame plan…"
 PLAN_JSON="$OUT/plan.json"
 ANALYZER="$SCRIPT_DIR/analyze-transcript.py"
 "$PYTHON" "$ANALYZER" "$TRANSCRIPT_TXT" --out "$PLAN_JSON" --max-frames "$MAX_FRAMES" --duration "$META_DURATION"
-VIDEO_TYPE=$("$PYTHON" -c "import json; print(json.load(open('$PLAN_JSON'))['video_type'])" 2>/dev/null || echo "?")
-TARGET_FRAMES=$("$PYTHON" -c "import json; print(json.load(open('$PLAN_JSON'))['target_frame_count'])" 2>/dev/null || echo "?")
-KEY_MOMENTS=$("$PYTHON" -c "import json; print(json.load(open('$PLAN_JSON'))['key_moments_count'])" 2>/dev/null || echo "?")
-DURATION=$("$PYTHON" -c "import json; print(json.load(open('$PLAN_JSON'))['duration_sec'])" 2>/dev/null || echo "?")
+VIDEO_TYPE=$("$PYTHON" -c "import json,sys; print(json.load(open(sys.argv[1]))['video_type'])" "$PLAN_JSON" 2>/dev/null || echo "?")
+TARGET_FRAMES=$("$PYTHON" -c "import json,sys; print(json.load(open(sys.argv[1]))['target_frame_count'])" "$PLAN_JSON" 2>/dev/null || echo "?")
+KEY_MOMENTS=$("$PYTHON" -c "import json,sys; print(json.load(open(sys.argv[1]))['key_moments_count'])" "$PLAN_JSON" 2>/dev/null || echo "?")
+DURATION=$("$PYTHON" -c "import json,sys; print(json.load(open(sys.argv[1]))['duration_sec'])" "$PLAN_JSON" 2>/dev/null || echo "?")
 echo "→ video_type:      $VIDEO_TYPE"
 echo "→ duration:        ${DURATION}s"
 echo "→ key_moments:     $KEY_MOMENTS"
