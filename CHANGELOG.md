@@ -2,6 +2,11 @@
 
 Versions follow [semver](https://semver.org): major = breaking CLI or output change, minor = new feature, patch = fix. The current version is in `VERSION`; each release has a git tag `vX.Y.Z`.
 
+## 4.1.1 (2026-10-30)
+
+- Fix (Windows, from PR #1 by @tuanmcd): `extract-v3.sh` embedded the `plan.json` path inside a `python -c` string, which Git Bash does not convert, so the plan values came back as `?` and the run died on the hour arithmetic. The path is now passed as `sys.argv[1]`.
+- Fix (Windows): ffmpeg builds on Windows crash in fontconfig when `drawtext` names no font, so no contact sheets were made. `make-sheets.py` now names `C:/Windows/Fonts/arial.ttf` on Windows only; macOS and Linux run the same filter as before.
+
 ## 4.1.0 (2026-10-26)
 
 - Gradual scene changes: ffmpeg's scene score compares neighbouring frames, so a fade or a motion graphic that builds up over a second was never a scene change, and a video made of them got only the plan's sparse frames. `extract-frames-from-plan.py` now also counts a picture as changed when it differs from the one 1.5 s earlier far more than from the one 1 s later (it changed, then it holds), from the same ffmpeg decode. A moving camera changes about as much before as after, so handheld footage and slow pans do not count. Gradual changes are written as `scene` and feed the visual-heavy check; one within 2 s of a hard cut is that cut and is skipped; over the frame budget they come after the transcript's dense frames (a 1-hour test with dense zones keeps all 117 dense frames). Measured old → new, frames: a 1:55 talking-head video with fading motion graphics 15 → 27 (nearly every graphic now has one); a 4:55 animated short film 10 → 65 (0 → 39 scene changes; total time 16 → 25 s); a 19 s handheld clip 1 → 1; a 5:22 screen tutorial 61 → 75; a 1:42 editing-app tutorial 16 → 34; a 5:34 edited talk to camera 93 → 108. Scene detection on a 1-hour video: 22.3 → 22.4 s. (The "12 frames in 16 s" figure in earlier notes was recorded with 4.0.2.)

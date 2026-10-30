@@ -1,6 +1,6 @@
 {
   "name": "youtube-watch",
-  "version": "4.1.0",
+  "version": "4.1.1",
   "description": "Let Claude watch a video: timestamped transcript, content-aware frames and contact sheets in one pass",
   "author": { "name": "imtylervo", "url": "https://github.com/imtylervo" },
   "homepage": "https://github.com/imtylervo/youtube-watch",
