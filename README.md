@@ -178,6 +178,14 @@ youtube-watch/
 tests/                                    # python3 -m unittest discover tests
 ```
 
+## Contributing
+
+Issues and pull requests are welcome. Before sending a PR:
+
+- Run the tests: `python3 -m unittest discover tests`
+- Say which OS you tested on, as PR #1 did for Windows.
+- Keep each PR small and focused: one fix per PR.
+
 ## Acknowledgements
 
 - yt-dlp, ffmpeg, Tesseract, Pillow — the heavy lifters.
