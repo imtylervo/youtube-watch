@@ -26,6 +26,8 @@ Sampling blindly (one frame every N seconds) wastes most frames on a speaker's f
 
 ## Install
 
+Runs on macOS and Linux. Windows (Git Bash) works as of 4.1.1 according to a contributor; the maintainer has not tested it.
+
 ### Claude Code plugin (one command)
 
 ```text
@@ -117,7 +119,7 @@ extract-v3.sh URL --max-frames 500     # for longer / denser sampling
 Stage 1: yt-dlp — metadata (id, language, duration) + the author's title/description/chapters
 
 Stage 2: 3-tier transcript fallback
-  Tier A: youtube-transcript-api — instant for ~90% of public videos
+  Tier A: youtube-transcript-api — instant when the video has captions
   Tier B: yt-dlp --write-auto-subs — 10-30s, covers most others (the video's own
           language, rolling captions de-duplicated)
   Tier C: local Whisper (mlx-whisper, else faster-whisper) — only when A+B fail OR the subtitles look unreliable

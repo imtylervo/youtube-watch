@@ -60,7 +60,7 @@ Override frame budget directly with `--max-frames N` (e.g. `500` for 5h+ videos)
 
 1. **yt-dlp metadata** + (cheap) audio download for fallback Whisper.
 2. **3-tier transcript fallback:**
-   - **A. youtube-transcript-api** — instant for ~90% of public videos.
+   - **A. youtube-transcript-api** — instant when the video has captions.
    - **B. yt-dlp `--write-auto-subs`** — fast (10-30s), covers most others.
    - **C. Local Whisper STT** — mlx-whisper on Apple Silicon when its model is already downloaded (GPU: ~11 s for 5 min of audio), else faster-whisper (CPU). Both use Silero VAD and are installed in the skill's `.venv` from `requirements.txt`. Slow (1-10 min), only when A+B fail (livestreams that haven't generated captions yet, private videos, audio-only sources).
    - **Unreliable subtitles count as a failure.** After A or B, `transcript-quality.py` checks them: no caption lines, more than half just `[Music]`-style tags, or under 15 spoken words/minute (videos ≥1 min). If so the script says why and tries Whisper on the audio; if Whisper yields nothing it keeps the subtitles (a copy is saved as `transcript.subs.txt`). Good subtitles are always used as-is — audio is never touched.
