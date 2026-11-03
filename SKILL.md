@@ -56,6 +56,8 @@ Subtitles follow the video's own language (not the machine-translated English tr
 
 Override frame budget directly with `--max-frames N` (e.g. `500` for 5h+ videos).
 
+On Linux at most 2 faster-whisper runs go at once (each holds ~2 GB RAM); extra runs print "waiting for a free Whisper slot" and continue when one frees. Change with `YTW_WHISPER_SLOTS=N`.
+
 ## How it works (5 stages, content-aware)
 
 1. **yt-dlp metadata** + (cheap) audio download for fallback Whisper.
@@ -66,7 +68,7 @@ Override frame budget directly with `--max-frames N` (e.g. `500` for 5h+ videos)
    - **Unreliable subtitles count as a failure.** After A or B, `transcript-quality.py` checks them: no caption lines, more than half just `[Music]`-style tags, or under 15 spoken words/minute (videos ≥1 min). If so the script says why and tries Whisper on the audio; if Whisper yields nothing it keeps the subtitles (a copy is saved as `transcript.subs.txt`). Good subtitles are always used as-is — audio is never touched.
    - **Whisper output gets the same check.** On music-only audio Whisper writes `*music*` tags or invents a stock phrase ("We'll be right back"). If it fails, the video counts as having no speech (`no-speech` plan) and the rejected text is kept as `transcript.whisper-rejected.txt`. When that file exists, say the video has no voice-over (music/sound only), not that the transcript failed.
    - **Audio download fallback:** audio-only formats can all fail with HTTP 403 while the 360p stream that carries audio (format 18) still works; the script takes the audio from it.
-3. **`analyze-transcript.py`** reads the transcript, regex-detects speaker visual references (`look-here` / `next-slide` / `code-action` / `click-action` / `screen-share` / `diagram` / `demo`), classifies the video as `tutorial-code` / `demo-ui` / `slide-presentation` / `livestream-chat` / `talking-head` / `vlog` / `mixed` (or `no-speech` when there is no transcript: then frames every 3 s over the video's real length), and emits a JSON plan with extraction zones.
+3. **`analyze-transcript.py`** reads the transcript, regex-detects speaker visual references (`look-here` / `next-slide` / `code-action` / `click-action` / `screen-share` / `diagram` / `demo`), classifies the video as `tutorial-code` / `demo-ui` / `slide-presentation` / `livestream-chat` / `talking-head` / `vlog` / `mixed` (or `no-speech` when there is no transcript: then frames every 3 s over the video's real length), and emits a JSON plan with extraction zones. Clips up to 3 minutes (Shorts, Reddit, TikTok) get at least one frame every 5 s whatever their type.
 4. **yt-dlp video DL** at the chosen resolution, then **`extract-frames-from-plan.py`** ffmpeg-seek-and-grabs one frame per planned timestamp.
    - Also adds a frame at every scene change (a hard cut, or a gradual one — a fade, a graphic building up — once the new picture holds; a moving camera does not count), drops near-identical frames, and — when the picture changes at least once a minute (independent of language or what the speaker says) — samples the ordinary zones at least every 10 s. This is a coarse signal: it also fires on edited talking-head videos (+~40% frames of a face), which is the accepted cost of not missing a static screen the speaker points at.
 5. **Combined `understanding.md`** + cleanup (drops `video.mp4`, `audio.*`, raw whisper output — keeps the digest-ready files).
@@ -80,6 +82,7 @@ Override frame budget directly with `--max-frames N` (e.g. `500` for 5h+ videos)
 ## When something fails
 
 - **HTTP 403 on download:** the usual cause is an old yt-dlp (the script warns when it is over 60 days old). Update it first (`brew upgrade yt-dlp`, or `pip install -U yt-dlp` where it was installed with pip), then rerun the script. A VPN or proxy does not fix a 403; it only helps when YouTube asks to "confirm you're not a bot".
+- **Several videos at once:** each Whisper `large-v3-turbo` run takes about 1.8 GB of RAM. On Linux the script lets only 2 run together (see `YTW_WHISPER_SLOTS` above); on a Mac, start them one or two at a time.
 - **Rerun the script instead of downloading by hand.** If you still fetch something yourself (a higher resolution, an audio clip), put it in the session scratchpad and delete it in the same turn once you have looked at it. The script's cleanup only removes what the script downloaded.
 
 ## Reading frames after extraction

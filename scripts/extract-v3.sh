@@ -162,6 +162,11 @@ else
 fi
 [[ "$META_DURATION" =~ ^[0-9]+(\.[0-9]+)?$ ]] || META_DURATION=0   # NA for live streams
 [[ -z "$VID_ID" ]] && VID_ID="video"
+# Metadata blocked: take the id from a YouTube URL, so parallel runs never share (and overwrite) "video/" (2/11).
+if [[ "$VID_ID" == "video" && "$URL" =~ (v=|youtu\.be/|shorts/|live/|embed/)([A-Za-z0-9_-]{11}) ]]; then VID_ID="${BASH_REMATCH[2]}"; fi
+# Every Reddit video is named HLSPlaylist/DASHPlaylist by yt-dlp; use the id after v.redd.it/ so two
+# Reddit videos never share (and overwrite) one output folder.
+if [[ "$URL" =~ ^https?://v\.redd\.it/([A-Za-z0-9]+) ]]; then VID_ID="vreddit-${BASH_REMATCH[1]}"; fi
 [[ -z "$VIDEO_LANG" || "$VIDEO_LANG" == "None" ]] && VIDEO_LANG="NA"
 [[ -z "$OUT" ]] && OUT="$HOME/.cache/yt-watch/${VID_ID}"
 mkdir -p "$OUT/frames"
@@ -296,8 +301,28 @@ if [[ -z "$TRANSCRIPT_TIER" ]] && [[ "$WANT_WHISPER" == "1" ]]; then
         "$PYTHON" "$SCRIPT_DIR/mlx-whisper-txt.py" "$AUDIO_WAV" --model "$WHISPER_MODEL" \
             ${FW_LANG[@]+"${FW_LANG[@]}"} --out "$OUT/whisper-out.fw.txt" 2>&1 | grep -v "Fetching" | tail -3 >&2
       else
+        # Each faster-whisper large model holds ~2 GB of RAM. Twelve parallel runs (several agents
+        # watching videos at once) used 16 GB of a 24 GB machine and the kernel OOM killer took
+        # down the whole user session. Allow YTW_WHISPER_SLOTS runs at a time (default 2); others wait.
+        WHISPER_FD=""
+        if command -v flock >/dev/null 2>&1; then
+          slot_dir="${XDG_RUNTIME_DIR:-/tmp}/yt-watch-whisper"; mkdir -p "$slot_dir"
+          waited=0
+          while [[ -z "$WHISPER_FD" ]]; do
+            for i in $(seq 1 "${YTW_WHISPER_SLOTS:-2}"); do
+              exec {fd}>"$slot_dir/slot$i"
+              if flock -n "$fd"; then WHISPER_FD=$fd; break; fi
+              exec {fd}>&-
+            done
+            if [[ -z "$WHISPER_FD" ]]; then
+              [[ "$waited" == "0" ]] && echo "→ Tier C: waiting for a free Whisper slot (max ${YTW_WHISPER_SLOTS:-2} at once)…"
+              waited=1; sleep 3
+            fi
+          done
+        fi
         "$PYTHON" "$SCRIPT_DIR/faster-whisper-txt.py" "$AUDIO_WAV" --model "$WHISPER_MODEL" \
             ${FW_LANG[@]+"${FW_LANG[@]}"} --out "$OUT/whisper-out.fw.txt" 2>&1 | tail -3 >&2
+        [[ -n "$WHISPER_FD" ]] && exec {WHISPER_FD}>&-
       fi
     fi
     FW_NAME="faster-whisper"; [[ "$USE_MLX" == "1" ]] && FW_NAME="mlx-whisper"
@@ -372,6 +397,19 @@ if [[ ! -f "$VIDEO_FILE" ]]; then
     echo "⚠ YouTube media download failed; retrying with the embedded-player client (up to ${MAX_HEIGHT}p)…" >&2
     rm -f "$OUT"/video.f*.mp4 "$OUT"/video*.part "$OUT"/video*.ytdl 2>/dev/null
     if yt-dlp "${YTDLP_EMBEDDED_CLIENT_ARGS[@]}" -f "$DASH_FORMAT" \
+             --merge-output-format mp4 -o "$OUT/video.%(ext)s" --no-warnings "$URL" >&2; then
+      DOWNLOAD_STATUS=0
+    else
+      DOWNLOAD_STATUS=$?
+    fi
+  fi
+  # Other sites (e.g. Reddit's v.redd.it HLS) often have only separate video and audio streams, and
+  # vertical videos are taller than MAX_HEIGHT, so the format above matches nothing. Retry sorting by
+  # the shorter side ("res"), which keeps a 720x1280 vertical video at 720p.
+  if [[ ! -s "$VIDEO_FILE" ]] && ! is_youtube_url "$URL"; then
+    echo "⚠ no ${MAX_HEIGHT}p mp4 format; retrying with the best video+audio up to ${MAX_HEIGHT}p on the shorter side…" >&2
+    rm -f "$OUT"/video.f*.mp4 "$OUT"/video*.part "$OUT"/video*.ytdl 2>/dev/null
+    if yt-dlp -f "bv*+ba/b" -S "res:${MAX_HEIGHT}" \
              --merge-output-format mp4 -o "$OUT/video.%(ext)s" --no-warnings "$URL" >&2; then
       DOWNLOAD_STATUS=0
     else

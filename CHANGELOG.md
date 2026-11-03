@@ -2,6 +2,14 @@
 
 Versions follow [semver](https://semver.org): major = breaking CLI or output change, minor = new feature, patch = fix. The current version is in `VERSION`; each release has a git tag `vX.Y.Z`.
 
+## 4.2.0 (2026-11-04)
+
+- At most 2 faster-whisper transcriptions run at once (`YTW_WHISPER_SLOTS`, default 2); others print "waiting for a free Whisper slot" and continue when one frees. Each large model holds about 2 GB of RAM: twelve parallel runs (several agents watching videos at once) used 16 GB of a 24 GB machine and the out-of-memory killer took down the whole user session. Uses `flock` (Linux); the Mac mlx-whisper path is unchanged.
+- Clips up to 3 minutes (Shorts, Reddit, TikTok) are sampled at least every 5 s, whatever their type. A 62 s narrated map animation was planned as `talking-head` (1 frame / 30 s) and got 3 frames; it now gets 13.
+- Sites other than YouTube: when no format matches the default `<=720p mp4 + m4a` (e.g. Reddit's v.redd.it HLS, where video and audio are separate and vertical videos are 1280 px tall), retry once with the best video+audio sorted by the shorter side (`-S res:<height>`), so a 720x1280 vertical video downloads at 720p. YouTube's download path is unchanged.
+- Fix: every Reddit video (`v.redd.it/<id>/HLSPlaylist.m3u8`) got the same output folder `HLSPlaylist`, so a second one overwrote the first. The default folder is now `vreddit-<id>`.
+- Fix: when YouTube blocked the metadata request, every run used the folder `video/`, so videos extracted at the same time overwrote each other. The folder now takes the 11-character id from the URL (`watch?v=`, `youtu.be/`, `shorts/`, `live/`, `embed/`).
+
 ## 4.1.1 (2026-10-30)
 
 - Fix (Windows, from PR #1 by @tuanmcd): `extract-v3.sh` embedded the `plan.json` path inside a `python -c` string, which Git Bash does not convert, so the plan values came back as `?` and the run died on the hour arithmetic. The path is now passed as `sys.argv[1]`.

@@ -154,6 +154,10 @@ def classify_video(lines: list[tuple[int, str]], tag_counts: Counter, total_line
     return "talking-head"
 
 
+SHORT_CLIP_SEC = 180
+SHORT_CLIP_EVERY = 5
+
+
 def plan_zones(duration_sec: int, video_type: str, key_moments: list[dict],
                max_frames: int = 300) -> list[dict]:
     """Produce a list of zones that the extractor will sample at different
@@ -171,6 +175,11 @@ def plan_zones(duration_sec: int, video_type: str, key_moments: list[dict],
         # No speech: the picture is all there is, so sample it closely.
         "no-speech":          {"normal_every": 3,  "dense_every": 3,  "sparse_every": 10},
     }.get(video_type, {"normal_every": 12, "dense_every": 3, "sparse_every": 45})
+    # Short clips (Shorts, Reddit, TikTok) change picture constantly even when someone narrates
+    # all the way through, so a talking-head rate of 1 frame / 30 s saw 3 frames of a 62 s
+    # narrated map animation. Under SHORT_CLIP_SEC, sample at least every SHORT_CLIP_EVERY s.
+    if 0 < duration_sec <= SHORT_CLIP_SEC:
+        profile = {k: min(v, SHORT_CLIP_EVERY) for k, v in profile.items()}
 
     # Build dense windows around key moments (±10s)
     DENSE_WINDOW = 10

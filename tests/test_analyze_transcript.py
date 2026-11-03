@@ -123,6 +123,19 @@ class AnalyzeNoSpeechTests(unittest.TestCase):
         self.assertEqual(plan["duration_sec"], 120)
         self.assertEqual(plan["zones"][-1]["end_sec"], 120)
 
+    def test_short_narrated_clip_gets_a_frame_every_5_s(self):
+        # 62 s narrated map animation (Reddit): talking-head by cues, but the picture keeps changing.
+        lines = [f"00:{s:02d}  the continents drift apart and a new ocean opens" for s in range(0, 60, 4)]
+        plan = self.plan_for(lines, "--duration", "62")
+        self.assertEqual(plan["video_type"], "talking-head")
+        self.assertGreaterEqual(plan["target_frame_count"], 12)
+        self.assertTrue(all(z["every_sec"] <= 5 for z in plan["zones"]))
+
+    def test_long_talking_head_keeps_its_sparse_rate(self):
+        lines = [f"{m:02d}:00  and that is what we talked about on the show" for m in range(0, 20)]
+        plan = self.plan_for(lines, "--duration", "1200")
+        self.assertEqual(plan["zones"][0]["every_sec"], 30)
+
     def test_unknown_length_and_no_speech_keeps_minimal_plan(self):
         plan = self.plan_for(["(no transcript available)"])
         self.assertEqual(plan["duration_sec"], 0)

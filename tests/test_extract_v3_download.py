@@ -100,8 +100,10 @@ class DownloadTests(unittest.TestCase):
     def test_non_youtube_failure_does_not_retry_android(self):
         result, calls, _ = self.run_case('fail-fragment', 'https://example.com/video.mp4')
         self.assertNotEqual(result.returncode, 0)
-        self.assertEqual(len(calls), 1)
-        self.assertNotIn('youtube:player_client=android', calls[0])
+        self.assertEqual(len(calls), 2)  # default, then best video+audio sorted by the shorter side
+        self.assertEqual(calls[1][calls[1].index('-S')+1], 'res:480')
+        for call in calls:
+            self.assertNotIn('youtube:player_client=android', call)
 
 
 if __name__ == '__main__':
