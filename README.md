@@ -14,7 +14,7 @@ A Claude Code (or any Anthropic-SDK / MCP-compatible) skill that:
 
 ## Why content-aware frames
 
-Sampling blindly (one frame every N seconds) wastes most frames on a speaker's face, and sampling only at scene changes misses a static slide the speaker keeps pointing at. This skill reads the transcript first, classifies the video (tutorial-code / demo-ui / slide-presentation / livestream-chat / talking-head / vlog / mixed / no-speech) and samples **densely** (1 frame / 2-3 s) around the moments the speaker says "look at this", "click here", "next slide", "let me code", and **normally** (1 frame / 8-15 s) elsewhere, plus a frame at every scene change — hard cuts and gradual ones (a fade, a motion graphic building up) once the new picture holds, while a handheld or panning camera does not count.
+Sampling blindly (one frame every N seconds) wastes most frames on a speaker's face, and sampling only at scene changes misses a static slide the speaker keeps pointing at. This skill reads the transcript first, classifies the video (tutorial-code / demo-ui / slide-presentation / livestream-chat / talking-head / vlog / mixed / no-speech) and samples **densely** (1 frame / 2-3 s) around the moments the speaker says "look at this", "click here", "next slide", "let me code", and **normally** (1 frame / 8-15 s) elsewhere, plus a frame at every scene change — hard cuts and gradual ones (a fade, a motion graphic building up) once the new picture holds, while a handheld or panning camera does not count. Clips up to 3 minutes get at least one frame every 5 s, since their picture changes constantly even when someone narrates throughout.
 
 ## How it compares to claude-real-video
 
